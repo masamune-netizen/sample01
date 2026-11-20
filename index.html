@@ -68,7 +68,7 @@ li button{border:0;background:transparent;color:var(--ng);font-weight:700;font-s
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let tt;const toast=m=>{const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>e.classList.remove('show'),2000)};
-/* 整番QR / 1G通信ラベル */
+
 function parseSeiban(c){if(!/^5\d{6}/.test(c)||c.length<33)return null;return{no:c.slice(7,15),model:c.slice(15,25).trim(),ph:c.slice(5,7)}}
 function parse1G(c){const m=String(c).match(/^([A-Z0-9][A-Z0-9-]{2,11})\s+(\d{2})\d{0,10}?([A-Z]\d{2}[A-Z]\d{7})/);return m?{model:m[1],ph:m[2],no:m[3]}:null}
 const keyOf=c=>{const s=parseSeiban(c);if(s)return s.no[0]+s.no.slice(-6);const g=parse1G(c);return g?g.no[0]+g.no.slice(-6):null};
