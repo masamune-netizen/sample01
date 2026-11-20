@@ -4,13 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>メーター動画読み取り</title>
+<title>QR Reader</title>
 <style>
-/* VOICE: 現場の道具。カメラを向けるだけ
-   IDEA: バーコードリーダーの画面。読んだら緑に光ってピッ
-   PICTURE: 画面いっぱいのカメラと、大きな台数
-   COLOUR and TYPE: 黒地＋緑（読めた）・黄（同じ）・青（ボタン）。システムのゴシック
-   LAYOUT: 上にカメラ、下に台数と一覧、一番下にボタン */
 :root{--bg:#0f1318;--card:#1a2029;--ink:#eef2f6;--sub:#9aa5b5;--ok:#34c77b;--blue:#5b8cff;--warn:#ffd60a;--ng:#ff8a4c;--line:#2c3442}
 *{box-sizing:border-box;min-width:0}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"Hiragino Sans","BIZ UDPGothic",sans-serif}
@@ -48,23 +43,23 @@ li button{border:0;background:transparent;color:var(--ng);font-weight:700;font-s
 </style>
 </head>
 <body>
-<header><h1>メーター動画読み取り</h1><span id="eng">準備中…</span></header>
+<header><h1>QR連続読み取り</h1><span id="eng">準備中…</span></header>
 <div class="cam" id="cam">
   <video id="v" playsinline muted autoplay></video>
   <div class="frame" id="frame"></div>
   <div class="msg" id="msg"></div>
   <div class="start" id="start">
-    <div style="font-size:15px">整番QR（計器番号の横）にカメラを向けるだけで、次々に読み取ります。<br>読めたら「ピッ」と鳴って緑に光ります。</div>
+    <div style="font-size:15px">QRにカメラを向けるだけで、次々に読み取ります。<br>読めたら「ピッ」と鳴って緑に光ります。</div>
     <button class="big" id="go">カメラを起動</button>
     <div style="font-size:12px;color:#9aa5b5">カメラの許可を聞かれたら「許可」を押してください。<br>音が出るように、消音スイッチを切ってください。</div>
   </div>
 </div>
-<div class="count"><span>読んだ</span><b id="n">0</b><span>台</span></div>
+<div class="count"><span>読んだ</span><b id="n">0</b><span>件</span></div>
 <div class="sum" id="sum"></div>
-<div class="row"><button class="btn main" id="send">アプリに送る（コピー）</button></div>
+<div class="row"><button class="btn main" id="send">コピー</button></div>
 <ul id="list"></ul>
 <div class="row"><button class="btn" id="torch" style="display:none">ライト</button><button class="btn" id="stop">カメラを止める</button><button class="btn del" id="clear">全部消す</button></div>
-<p class="note">使い方：読み終わったら「アプリに送る」を押して、メーター返納チェックのアプリの「貼り付けて取り込む」に貼ります。持ち出しか戻りかは、アプリのほうで選んでから取り込みます。<br>このページには計器番号を送る仕組みはありません（このiPhoneの中だけで読み取ります）。</p>
+<p class="note">読み取った内容はこの端末の中だけに残ります。「コピー」で貼り付けて使います。</p>
 <div id="toast"></div>
 <script src="jsQR.js"></script>
 <script src="zxing-reader.js"></script>
@@ -77,20 +72,18 @@ let tt;const toast=m=>{const e=$('toast');e.textContent=m;e.classList.add('show'
 function parseSeiban(c){if(!/^5\d{6}/.test(c)||c.length<33)return null;return{no:c.slice(7,15),model:c.slice(15,25).trim(),ph:c.slice(5,7)}}
 function parse1G(c){const m=String(c).match(/^([A-Z0-9][A-Z0-9-]{2,11})\s+(\d{2})\d{0,10}?([A-Z]\d{2}[A-Z]\d{7})/);return m?{model:m[1],ph:m[2],no:m[3]}:null}
 const keyOf=c=>{const s=parseSeiban(c);if(s)return s.no[0]+s.no.slice(-6);const g=parse1G(c);return g?g.no[0]+g.no.slice(-6):null};
-const PHN={'02':'単二 100V 30A','12':'単二 200V 30A','23':'単三 100V 60A','24':'単三 100V 120A','25':'単三 100V 250A','33':'三相 200V 60A','34':'三相 200V 120A','35':'三相 200V 250A'};
-const label=c=>{const s=parseSeiban(c),g=parse1G(c),p=(s||g).ph;return{name:(PHN[p]||'種類 '+p)+(g?'（1G）':''),no:(s||g).no,model:(s||g).model}};
+const label=c=>{const s=parseSeiban(c),g=parse1G(c);return{name:'No. '+(s||g).no,no:(s||g).no,model:(s||g).model}};
 let L=[];try{L=JSON.parse(localStorage.getItem('ms_list')||'[]')}catch(e){}
 const save=()=>{try{localStorage.setItem('ms_list',JSON.stringify(L))}catch(e){}};
 function draw(){
   $('n').textContent=L.length;
-  const m={};L.forEach(x=>{const n=label(x.c).name;m[n]=(m[n]||0)+1});
-  $('sum').innerHTML=Object.entries(m).map(([k,v])=>`<span>${esc(k)} <b>${v}</b></span>`).join('');
-  $('list').innerHTML=L.length?L.slice().reverse().map(x=>{const l=label(x.c);return `<li><div class="t">${esc(l.name)}<small>No. ${esc(l.no)} ・ ${esc(l.model)}</small></div><button data-k="${esc(x.k)}">消す</button></li>`}).join(''):'<li class="empty">まだ読んでいません</li>';
+  $('sum').innerHTML='';
+  $('list').innerHTML=L.length?L.slice().reverse().map(x=>{const l=label(x.c);return `<li><div class="t">${esc(l.name)}</div><button data-k="${esc(x.k)}">消す</button></li>`}).join(''):'<li class="empty">まだ読んでいません</li>';
 }
 $('list').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;L=L.filter(x=>x.k!==b.dataset.k);save();draw()};
 $('clear').onclick=e=>{const b=e.currentTarget;if(!b.dataset.sure){b.dataset.sure=1;b.textContent='もう一度押すと消します';setTimeout(()=>{delete b.dataset.sure;b.textContent='全部消す'},3000);return}L=[];save();draw();delete b.dataset.sure;b.textContent='全部消す';toast('全部消しました')};
 $('send').onclick=async()=>{if(!L.length){toast('まだ読んでいません');return}const txt=L.map(x=>x.c).join('\n');
-  try{await navigator.clipboard.writeText(txt);toast(L.length+'台分をコピーしました。アプリの「貼り付けて取り込む」に貼ってください')}catch(e){const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();try{document.execCommand('copy');toast('コピーしました')}catch(_){toast('コピーできませんでした')}t.remove()}};
+  try{await navigator.clipboard.writeText(txt);toast(L.length+'件コピーしました')}catch(e){const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();try{document.execCommand('copy');toast('コピーしました')}catch(_){toast('コピーできませんでした')}t.remove()}};
 /* 音 */
 let ac=null;
 function beep(ok){try{if(!ac)return;const o=ac.createOscillator(),g=ac.createGain();o.type=ok?'sine':'square';o.frequency.value=ok?1500:220;g.gain.setValueAtTime(.0001,ac.currentTime);g.gain.exponentialRampToValueAtTime(.4,ac.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+(ok?.12:.3));o.connect(g).connect(ac.destination);o.start();o.stop(ac.currentTime+(ok?.13:.32))}catch(e){}}
@@ -105,7 +98,7 @@ async function start(){
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})}
   catch(e){toast('カメラが使えません（'+(e.name||'')+'）。設定でカメラを許可してください');return}
   v.srcObject=stream;try{await v.play()}catch(e){}
-  $('start').style.display='none';$('msg').textContent='整番QRを枠に入れてください';
+  $('start').style.display='none';$('msg').textContent='QRを枠に入れてください';
   const tr=stream.getVideoTracks()[0];try{const cap=tr.getCapabilities&&tr.getCapabilities();if(cap&&cap.torch)$('torch').style.display=''}catch(e){}
   loop();
 }
@@ -113,7 +106,7 @@ let torchOn=false;$('torch').onclick=async()=>{try{torchOn=!torchOn;await stream
 function stop(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('start').style.display='flex';$('go').textContent='カメラを起動'}
 $('go').onclick=start;$('stop').onclick=stop;
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
-function flash(cls,txt){const f=$('frame');f.className='frame '+cls;$('msg').textContent=txt;clearTimeout(flash.t);flash.t=setTimeout(()=>{f.className='frame';$('msg').textContent='整番QRを枠に入れてください'},700)}
+function flash(cls,txt){const f=$('frame');f.className='frame '+cls;$('msg').textContent=txt;clearTimeout(flash.t);flash.t=setTimeout(()=>{f.className='frame';$('msg').textContent='QRを枠に入れてください'},700)}
 async function loop(){
   if(!stream)return;
   const w=v.videoWidth,h=v.videoHeight;
@@ -124,7 +117,7 @@ async function loop(){
       else if(window.jsQR){const q=jsQR(id.data,id.width,id.height,{inversionAttempts:'dontInvert'});if(q&&q.data)codes.add(q.data)}
       for(const c of codes){const k2=keyOf(c);if(!k2)continue;
         if(L.some(x=>x.k===k2)){if(!lastDup[k2]||Date.now()-lastDup[k2]>2500){lastDup[k2]=Date.now();flash('dup','読み取り済み');beep(false)}continue}
-        L.push({k:k2,c,t:Date.now()});save();draw();beep(true);const l=label(c);flash('ok','✓ '+l.name+'　'+L.length+'台目');
+        L.push({k:k2,c,t:Date.now()});save();draw();beep(true);const l=label(c);flash('ok','✓ '+L.length+'件目');
       }
     }catch(e){}
     busy=false}
